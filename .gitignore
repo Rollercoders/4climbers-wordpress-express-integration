@@ -1,2 +1,4 @@
 vendor/
 firebase_credentials.json
+.idea/
+.DS_Store
