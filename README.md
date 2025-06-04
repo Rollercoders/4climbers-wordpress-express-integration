@@ -22,6 +22,15 @@
 * WooCommerce intercetta la password da `$_POST`
 * Alla creazione dell’utente (`user_register`), WordPress chiama il backend Express per creare l’utente su Firebase
 
+#### Caso C – Eliminazione utente da Firebase
+
+* Se l’utente viene eliminato in Firebase (es. da pannello admin), il backend Express chiama:
+
+  ```
+  DELETE /wp-json/firebase/v1/delete-user/:email
+  ```
+* WordPress cerca l’utente tramite email ed esegue `wp_delete_user()`
+
 ---
 
 ### 🔐 Sicurezza
@@ -48,6 +57,7 @@
 
     * Esporre `/api/firebase-sync` (protetto da `X-WP-Secret`)
     * Chiamare `/wp-json/firebase/v1/create-user` ogni volta che registra un nuovo utente Firebase
+    * Chiamare `/wp-json/firebase/v1/delete-user/:email` quando elimina un utente
 
 ---
 
@@ -62,6 +72,7 @@
 
 * [x] Registrazione Woo → Firebase
 * [x] Registrazione Firebase → Woo
+* [x] Cancellazione Firebase → Woo (`DELETE /delete-user/:email`)
 * [x] Sicurezza server-to-server
 * [x] Logging controllato da `WP_DEBUG`
 * [x] Pulizia automatica dei dati sensibili (password via `transient` TTL)
