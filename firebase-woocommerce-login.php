@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Firebase-WooCommerce Integration
  * Description: Firebase-WooCommerce integration for 4Climbers
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -32,12 +32,20 @@ add_filter('woocommerce_new_customer_data', function ($customer_data) {
 add_action('rest_api_init', function () {
     register_rest_route('firebase/v1', '/create-user', [
         'methods' => 'POST',
-        'callback' => 'firebase_create_user_from_app',
+        'callback' => 'create_user_from_app',
         'permission_callback' => '__return_true',
     ]);
 });
 
-function firebase_create_user_from_app($request) {
+add_action('rest_api_init', function () {
+    register_rest_route('firebase/v1', '/delete-user/(?P<email>[^/]+)', [
+        'methods' => 'DELETE',
+        'callback' => 'delete_user_from_app',
+        'permission_callback' => '__return_true',
+    ]);
+});
+
+function create_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
     if ($secret !== FIREBASE_SYNC_SECRET) {
         return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
@@ -77,6 +85,39 @@ function firebase_create_user_from_app($request) {
     }
 
     return ['success' => true, 'user_id' => $user_id];
+}
+
+function delete_user_from_app($request) {
+    $secret = $request->get_header('X-WP-Secret');
+    if ($secret !== FIREBASE_SYNC_SECRET) {
+        return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
+    }
+
+    $email = sanitize_email(urldecode($request->get_param('email')));
+
+    if (!$email) {
+        return new WP_Error('missing_data', 'Email mancante', ['status' => 400]);
+    }
+
+    $user = get_user_by('email', $email);
+    if (!$user) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[DEBUG] Utente con email ' . $email . ' non trovato');
+        }
+        return new WP_Error('missing_data', 'Utente non trovato', ['status' => 404]);
+    }
+
+    $deleted = wp_delete_user($user->ID);
+
+    if (!$deleted) {
+        return new WP_Error('delete_failed', 'Impossibile eliminare utente', ['status' => 500]);
+    }
+
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[DEBUG] Utente eliminato da Admin: ' . $email);
+    }
+
+    return ['success' => true];
 }
 
 function wc_register_user_on_firebase($user_id) {
