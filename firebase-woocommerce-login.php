@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Firebase-WooCommerce Integration
  * Description: Firebase-WooCommerce integration for 4Climbers
- * Version: 1.2.0
+ * Version: 1.3.2
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -44,6 +44,8 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true',
     ]);
 });
+
+add_action('woocommerce_order_status_completed', 'wc_notify_firebase_order_completed');
 
 function create_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
@@ -159,5 +161,45 @@ function wc_register_user_on_firebase($user_id) {
     } else {
         error_log('[DEBUG] STATUS: ' . wp_remote_retrieve_response_code($res));
         error_log('[DEBUG] RISPOSTA: ' . wp_remote_retrieve_body($res));
+    }
+}
+
+function wc_notify_firebase_order_completed($order_id) {
+    $order = wc_get_order($order_id);
+    if (!$order) return;
+
+    $email = $order->get_billing_email();
+    $total = $order->get_total();
+
+    $payload = json_encode([
+        'email' => sanitize_email($email),
+        'total' => floatval($total),
+        'orderId' => $order_id,
+    ]);
+
+    $url = defined('FIREBASE_ORDER_ENDPOINT') ? FIREBASE_ORDER_ENDPOINT : null;
+    $secret = defined('FIREBASE_SYNC_SECRET') ? FIREBASE_SYNC_SECRET : null;
+
+    if (!$url || !$secret) return;
+
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log("[DEBUG][wc_notify_firebase_order_completed] Invio ordine completato a backend: $payload");
+    }
+
+    $res = wp_remote_request($url, [
+        'method' => 'PATCH',
+        'headers' => [
+            'Content-Type' => 'application/json',
+            'X-WP-Secret' => $secret,
+        ],
+        'body' => $payload,
+        'timeout' => 10,
+    ]);
+
+    if (is_wp_error($res)) {
+        error_log('[DEBUG] ERRORE ORDINE: ' . $res->get_error_message());
+    } else {
+        error_log('[DEBUG] ORDINE STATUS: ' . wp_remote_retrieve_response_code($res));
+        error_log('[DEBUG] RISPOSTA ORDINE: ' . wp_remote_retrieve_body($res));
     }
 }
