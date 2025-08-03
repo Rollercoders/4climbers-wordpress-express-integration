@@ -2,9 +2,11 @@
 /**
  * Plugin Name: Firebase-WooCommerce Integration
  * Description: Firebase-WooCommerce integration for 4Climbers
- * Version: 1.3.2
+ * Version: 1.4.7
  * Author: Alessandro Defendenti (Rollercoders)
  */
+
+use Kreait\Firebase\Factory;
 
 add_action('user_register', 'wc_register_user_on_firebase', 10, 1);
 
@@ -46,6 +48,14 @@ add_action('rest_api_init', function () {
 });
 
 add_action('woocommerce_order_status_completed', 'wc_notify_firebase_order_completed');
+
+add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
+
+function wc_maybe_hook_firebase_login() {
+    if (isset($_GET['firebase_login']) && isset($_GET['token'])) {
+        add_action('init', 'wc_handle_firebase_login', 1);
+    }
+}
 
 function create_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
@@ -203,3 +213,46 @@ function wc_notify_firebase_order_completed($order_id) {
         error_log('[DEBUG] RISPOSTA ORDINE: ' . wp_remote_retrieve_body($res));
     }
 }
+
+function wc_handle_firebase_login() {
+    if (!isset($_GET['firebase_login']) || !isset($_GET['token'])) {
+        return;
+    }
+
+    require_once __DIR__ . '/vendor/autoload.php';
+
+    try {
+        $factory = (new Factory())
+            ->withServiceAccount(FIREBASE_SERVICE_ACCOUNT);
+        $auth = $factory->createAuth();
+
+        $idTokenString = sanitize_text_field($_GET['token']);
+        $verifiedIdToken = $auth->verifyIdToken($idTokenString);
+        $email = $verifiedIdToken->claims()->get('email');
+
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("[DEBUG][wc_handle_firebase_login] idTokenString: $idTokenString");
+            error_log("[DEBUG][wc_handle_firebase_login] email: $email");
+        }
+
+        if (!$email) {
+            wp_die('Email mancante nel token Firebase');
+        }
+
+        $user = get_user_by('email', $email);
+        if (!$user) {
+            wp_die('Utente non trovato in WordPress');
+        }
+
+        wp_set_current_user($user->ID);
+        wp_set_auth_cookie($user->ID, true);
+        do_action('wp_login', $user->user_login, $user);
+
+        wp_redirect(home_url('/prodotto/premium-subscription/'));
+        exit;
+
+    } catch (\Throwable $e) {
+        wp_die('Errore login Firebase: ' . $e->getMessage());
+    }
+}
+
