@@ -1,0 +1,63 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check commit message
+      id: check-commit
+      run: |
+        COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]]; then
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+          echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
+        else
+          echo "should_deploy=false" >> $GITHUB_OUTPUT
+          echo "⏭️ Skipping deployment - commit message doesn't start with feat, fix:, or revert:"
+          echo "Commit message: $COMMIT_MSG"
+        fi
+
+    - name: Setup PHP
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: mbstring, xml, ctype, json, tokenizer, openssl
+
+    - name: Cache Composer packages
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-
+
+    - name: Install dependencies
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      run: composer install --prefer-dist --no-progress --no-suggest --optimize-autoloader --no-dev
+
+    - name: Deploy via FTP
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      uses: SamKirkland/FTP-Deploy-Action@4.3.4
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./
+        server-dir: /public_html/wp-content/plugins/4climbers-wordpress-express-integration/
+        exclude: |
+          **/.git*
+          **/.git*/**
+          .github/
+          README.md
