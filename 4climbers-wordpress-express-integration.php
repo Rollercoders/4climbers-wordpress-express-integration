@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: Firebase-WooCommerce Integration
- * Description: Firebase-WooCommerce integration for 4Climbers
+ * Plugin Name: 4Climbers Wordpress-Express Integration
+ * Description: Wordpress-Express integration for 4Climbers
  * Version: 1.4.7
  * Author: Alessandro Defendenti (Rollercoders)
  */
