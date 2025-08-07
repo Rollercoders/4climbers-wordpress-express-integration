@@ -181,8 +181,21 @@ function wc_notify_order_completed($order_id) {
     $email = $order->get_billing_email();
     $total = $order->get_total();
 
+    $items = [];
+    foreach ($order->get_items() as $item_id => $item) {
+        $product = $item->get_product();
+        $items[] = [
+            'name' => $item->get_name(),
+            'quantity' => $item->get_quantity(),
+            'total' => $item->get_total(),
+            'product_id' => $item->get_product_id(),
+            'variation_id' => $item->get_variation_id(),
+            'sku' => $product ? $product->get_sku() : '',
+        ];
+    }
+
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("[DEBUG][wc_notify_order_completed] order: " . print_r($order));
+        error_log("[DEBUG][wc_notify_order_completed] order: " . print_r($items));
     }
 
     $payload = json_encode([
@@ -214,7 +227,6 @@ function wc_notify_order_completed($order_id) {
         error_log('[DEBUG] ERRORE ORDINE: ' . $res->get_error_message());
     } else {
         error_log('[DEBUG] ORDINE STATUS: ' . wp_remote_retrieve_response_code($res));
-        error_log('[DEBUG] RISPOSTA ORDINE: ' . wp_remote_retrieve_body($res));
     }
 }
 
