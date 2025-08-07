@@ -59,7 +59,7 @@ function wc_maybe_hook_firebase_login() {
 
 function create_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
-    if ($secret !== FIREBASE_SYNC_SECRET) {
+    if ($secret !== EXPRESS_SYNC_SECRET) {
         return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
     }
 
@@ -101,7 +101,7 @@ function create_user_from_app($request) {
 
 function delete_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
-    if ($secret !== FIREBASE_SYNC_SECRET) {
+    if ($secret !== EXPRESS_SYNC_SECRET) {
         return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
     }
 
@@ -149,8 +149,8 @@ function wc_register_user_on_firebase($user_id) {
 
     $body = json_encode($data);
 
-    $url = defined('FIREBASE_SYNC_ENDPOINT') ? FIREBASE_SYNC_ENDPOINT : null;
-    $secret = defined('FIREBASE_SYNC_SECRET') ? FIREBASE_SYNC_SECRET : null;
+    $url = defined('EXPRESS_SYNC_ENDPOINT') ? EXPRESS_SYNC_ENDPOINT : null;
+    $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
     if (defined('WP_DEBUG') && WP_DEBUG) {
         error_log('[DEBUG] Invio dati a backend Express: ' . $body);
@@ -206,8 +206,8 @@ function wc_notify_order_completed($order_id) {
         'orderId' => $order_id,
     ]);
 
-    $url = defined('FIREBASE_ORDER_ENDPOINT') ? FIREBASE_ORDER_ENDPOINT : null;
-    $secret = defined('FIREBASE_SYNC_SECRET') ? FIREBASE_SYNC_SECRET : null;
+    $url = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
+    $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
     if (!$url || !$secret) return;
 
