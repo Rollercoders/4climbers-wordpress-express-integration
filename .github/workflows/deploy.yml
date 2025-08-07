@@ -1,9 +1,7 @@
-name: Deploy to Production
+name: Deploy to Wordpress
 
 on:
   push:
-    branches:
-      - develop
 
 jobs:
   deploy:
@@ -17,12 +15,12 @@ jobs:
       id: check-commit
       run: |
         COMMIT_MSG=$(git log -1 --pretty=format:"%s")
-        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]]; then
+        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
         else
           echo "should_deploy=false" >> $GITHUB_OUTPUT
-          echo "⏭️ Skipping deployment - commit message doesn't start with feat, fix:, or revert:"
+          echo "⏭️ Skipping deployment - commit message doesn't start with feat, fix:, revert:, or contain [DEPLOY]"
           echo "Commit message: $COMMIT_MSG"
         fi
 

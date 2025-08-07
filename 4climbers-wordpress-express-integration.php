@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.4.7
+ * Version: 1.4.8-rc.1
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -47,7 +47,7 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-add_action('woocommerce_order_status_completed', 'wc_notify_firebase_order_completed');
+add_action('woocommerce_order_status_completed', 'wc_notify_order_completed');
 
 add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
@@ -174,12 +174,16 @@ function wc_register_user_on_firebase($user_id) {
     }
 }
 
-function wc_notify_firebase_order_completed($order_id) {
+function wc_notify_order_completed($order_id) {
     $order = wc_get_order($order_id);
     if (!$order) return;
 
     $email = $order->get_billing_email();
     $total = $order->get_total();
+
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log("[DEBUG][wc_notify_order_completed] order: " . print_r($order));
+    }
 
     $payload = json_encode([
         'email' => sanitize_email($email),
@@ -193,7 +197,7 @@ function wc_notify_firebase_order_completed($order_id) {
     if (!$url || !$secret) return;
 
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("[DEBUG][wc_notify_firebase_order_completed] Invio ordine completato a backend: $payload");
+        error_log("[DEBUG][wc_notify_order_completed] Invio ordine completato a backend: $payload");
     }
 
     $res = wp_remote_request($url, [
