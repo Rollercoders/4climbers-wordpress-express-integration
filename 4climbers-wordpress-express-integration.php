@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.4.8-rc.4
+ * Version: 1.4.8
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -183,19 +183,21 @@ function wc_notify_order_completed($order_id) {
 
     $items = [];
     foreach ($order->get_items() as $item_id => $item) {
-        $product = $item->get_product();
         $items[] = [
-            'name' => $item->get_name(),
-            'quantity' => $item->get_quantity(),
-            'total' => $item->get_total(),
             'product_id' => $item->get_product_id(),
-            'variation_id' => $item->get_variation_id(),
-            'sku' => $product ? $product->get_sku() : '',
         ];
     }
 
+    $premiumId = defined('PREMIUM_SUBSCRIPTION_ITEM_ID') ? PREMIUM_SUBSCRIPTION_ITEM_ID : null;
+    if (!in_array($premiumId, $items)) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("[DEBUG][wc_notify_order_completed] User did not purchased premium subscription in this order.");
+        }
+        return;
+    }
+
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("[DEBUG][wc_notify_order_completed] items: " . print_r($items, true));
+        error_log("[DEBUG][wc_notify_order_completed] User purchased premium subscription in this order.");
     }
 
     $payload = json_encode([
