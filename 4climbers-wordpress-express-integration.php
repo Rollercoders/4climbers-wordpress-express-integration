@@ -167,9 +167,7 @@ function wc_notify_order_completed($order_id) {
 
     $items = [];
     foreach ($order->get_items() as $item_id => $item) {
-        $items[] = [
-            'product_id' => $item->get_product_id(),
-        ];
+        $items[] = $item->get_product_id();
     }
 
     $premiumId = defined('PREMIUM_SUBSCRIPTION_ITEM_ID') ? PREMIUM_SUBSCRIPTION_ITEM_ID : null;
