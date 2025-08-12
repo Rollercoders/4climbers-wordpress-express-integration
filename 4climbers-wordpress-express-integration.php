@@ -55,7 +55,9 @@ function wc_maybe_hook_firebase_login() {
 
 function create_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
-    if ($secret !== EXPRESS_SYNC_SECRET) {
+    $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
+
+    if ($secret !== $expressSecret) {
         return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
     }
 
@@ -93,7 +95,9 @@ function create_user_from_app($request) {
 
 function delete_user_from_app($request) {
     $secret = $request->get_header('X-WP-Secret');
-    if ($secret !== EXPRESS_SYNC_SECRET) {
+    $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
+
+    if ($secret !== $expressSecret) {
         return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
     }
 
@@ -218,8 +222,9 @@ function wc_handle_firebase_login() {
     require_once __DIR__ . '/vendor/autoload.php';
 
     try {
-        $factory = (new Factory())
-            ->withServiceAccount(FIREBASE_SERVICE_ACCOUNT);
+        $firebaseServiceAccount = defined('FIREBASE_SERVICE_ACCOUNT') ? FIREBASE_SERVICE_ACCOUNT : null;
+
+        $factory = (new Factory())->withServiceAccount($firebaseServiceAccount);
         $auth = $factory->createAuth();
 
         $idTokenString = sanitize_text_field($_GET['token']);
