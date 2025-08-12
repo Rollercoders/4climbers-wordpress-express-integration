@@ -19,13 +19,9 @@ add_filter('woocommerce_new_customer_data', function ($customer_data) {
             'password' => sanitize_text_field($password),
         ], 60);
 
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[DEBUG] Transient salvato per ' . $customer_data['user_email']);
-        }
+        debug_log("woocommerce_new_customer_data", "Transient salvato per " . $customer_data['user_email']);
     } else {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[DEBUG] Nessuna password trovata né in account_password né in password');
-        }
+        debug_log("woocommerce_new_customer_data", "Nessuna password trovata né in account_password né in password");
     }
 
     return $customer_data;
@@ -73,9 +69,7 @@ function create_user_from_app($request) {
 
     $existing = get_user_by('email', $email);
     if ($existing) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[DEBUG] Utente già esistente: ' . $email);
-        }
+        debug_log("create_user_from_app", "Utente già esistente: " . $email);
         return ['success' => true, 'note' => 'User already exists'];
     }
 
@@ -92,9 +86,7 @@ function create_user_from_app($request) {
         'role' => 'customer',
     ]);
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[DEBUG] Utente creato da Express: ' . $email);
-    }
+    debug_log("create_user_from_app", "Utente creato da Express: " . $email);
 
     return ['success' => true, 'user_id' => $user_id];
 }
@@ -113,9 +105,7 @@ function delete_user_from_app($request) {
 
     $user = get_user_by('email', $email);
     if (!$user) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[DEBUG] Utente con email ' . $email . ' non trovato');
-        }
+        debug_log("delete_user_from_app", "Utente con email " . $email . " non trovato");
         return new WP_Error('missing_data', 'Utente non trovato', ['status' => 404]);
     }
 
@@ -125,9 +115,7 @@ function delete_user_from_app($request) {
         return new WP_Error('delete_failed', 'Impossibile eliminare utente', ['status' => 500]);
     }
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[DEBUG] Utente eliminato da Admin: ' . $email);
-    }
+    debug_log("delete_user_from_app", "Utente eliminato da Admin: " . $email);
 
     return ['success' => true];
 }
@@ -139,9 +127,7 @@ function wc_register_user_on_firebase($user_id) {
 
     $data = get_transient('firebase_sync_' . $email);
     if (!$data || empty($data['password'])) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[DEBUG] Nessun transient/password per ' . $email);
-        }
+        debug_log("wc_register_user_on_firebase", "Nessun transient/password per " . $email);
         return;
     }
 
@@ -152,9 +138,7 @@ function wc_register_user_on_firebase($user_id) {
     $url = defined('EXPRESS_SYNC_ENDPOINT') ? EXPRESS_SYNC_ENDPOINT : null;
     $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('[DEBUG] Invio dati a backend Express: ' . $body);
-    }
+    debug_log("wc_register_user_on_firebase", "Invio dati a backend Express: " . $body);
 
     $res = wp_remote_post($url, [
         'method' => 'POST',
@@ -167,10 +151,10 @@ function wc_register_user_on_firebase($user_id) {
     ]);
 
     if (is_wp_error($res)) {
-        error_log('[DEBUG] ERRORE FETCH: ' . $res->get_error_message());
+        debug_log("wc_register_user_on_firebase", "ERRORE FETCH: " . $res->get_error_message());
     } else {
-        error_log('[DEBUG] STATUS: ' . wp_remote_retrieve_response_code($res));
-        error_log('[DEBUG] RISPOSTA: ' . wp_remote_retrieve_body($res));
+        debug_log("wc_register_user_on_firebase", "STATUS: " . wp_remote_retrieve_response_code($res));
+        debug_log("wc_register_user_on_firebase", "RISPOSTA: " . wp_remote_retrieve_body($res));
     }
 }
 
@@ -189,16 +173,14 @@ function wc_notify_order_completed($order_id) {
     }
 
     $premiumId = defined('PREMIUM_SUBSCRIPTION_ITEM_ID') ? PREMIUM_SUBSCRIPTION_ITEM_ID : null;
+
     if (!in_array($premiumId, $items)) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log("[DEBUG][wc_notify_order_completed] User did not purchased premium subscription in this order.");
-        }
+        debug_log("wc_notify_order_completed", "User did not purchased premium subscription in this order.");
+        debug_log("wc_notify_order_completed", "premiumId: $premiumId - items: " . print_r($items, true));
         return;
     }
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("[DEBUG][wc_notify_order_completed] User purchased premium subscription in this order.");
-    }
+    debug_log("wc_notify_order_completed", "User purchased premium subscription in this order.");
 
     $payload = json_encode([
         'email' => sanitize_email($email),
@@ -211,9 +193,7 @@ function wc_notify_order_completed($order_id) {
 
     if (!$url || !$secret) return;
 
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log("[DEBUG][wc_notify_order_completed] Invio ordine completato a backend: $payload");
-    }
+    debug_log("wc_notify_order_completed", "Invio ordine completato a backend: $payload");
 
     $res = wp_remote_request($url, [
         'method' => 'PATCH',
@@ -226,9 +206,9 @@ function wc_notify_order_completed($order_id) {
     ]);
 
     if (is_wp_error($res)) {
-        error_log('[DEBUG] ERRORE ORDINE: ' . $res->get_error_message());
+        debug_log("wc_notify_order_completed", "ERRORE ORDINE: " . $res->get_error_message());
     } else {
-        error_log('[DEBUG] ORDINE STATUS: ' . wp_remote_retrieve_response_code($res));
+        debug_log("wc_notify_order_completed", "ORDINE STATUS: " . wp_remote_retrieve_response_code($res));
     }
 }
 
@@ -248,10 +228,8 @@ function wc_handle_firebase_login() {
         $verifiedIdToken = $auth->verifyIdToken($idTokenString);
         $email = $verifiedIdToken->claims()->get('email');
 
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log("[DEBUG][wc_handle_firebase_login] idTokenString: $idTokenString");
-            error_log("[DEBUG][wc_handle_firebase_login] email: $email");
-        }
+        debug_log("wc_handle_firebase_login", "idTokenString: $idTokenString");
+        debug_log("wc_handle_firebase_login", "email: $email");
 
         if (!$email) {
             wp_die('Email mancante nel token Firebase');
@@ -274,3 +252,8 @@ function wc_handle_firebase_login() {
     }
 }
 
+function debug_log($function, $message) {
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log("[DEBUG][$function] $message");
+    }
+}
