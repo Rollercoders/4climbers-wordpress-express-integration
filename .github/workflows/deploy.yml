@@ -1,9 +1,7 @@
-name: Deploy to Production
+name: Deploy to Wordpress
 
 on:
   push:
-    branches:
-      - develop
 
 jobs:
   deploy:
@@ -17,14 +15,21 @@ jobs:
       id: check-commit
       run: |
         COMMIT_MSG=$(git log -1 --pretty=format:"%s")
-        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]]; then
+        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
         else
           echo "should_deploy=false" >> $GITHUB_OUTPUT
-          echo "⏭️ Skipping deployment - commit message doesn't start with feat, fix:, or revert:"
+          echo "⏭️ Skipping deployment - commit message doesn't start with feat, fix:, revert:, or contain [DEPLOY]"
           echo "Commit message: $COMMIT_MSG"
         fi
+
+    - name: Capture commit info
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      id: commit_info
+      run: |
+        echo "commit_message=${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+        echo "commit_timestamp=${{ github.event.head_commit.timestamp }}" >> $GITHUB_OUTPUT
 
     - name: Setup PHP
       if: steps.check-commit.outputs.should_deploy == 'true'
@@ -47,6 +52,47 @@ jobs:
       if: steps.check-commit.outputs.should_deploy == 'true'
       run: composer update --prefer-dist --no-progress --optimize-autoloader --no-dev
 
+    - name: Update version number
+      id: get_new_version
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
+      run: |
+        COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+        CURRENT_VERSION=$(grep -oP 'Version: \K[0-9]+\.[0-9]+\.[0-9]+' 4climbers-wordpress-express-integration.php)
+        
+        IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+        
+        if [[ "$COMMIT_MSG" =~ ^feat! ]]; then
+          # Breaking change - increment major version
+          major=$((major + 1))
+          minor=0
+          patch=0
+          echo "🚀 Breaking change detected - incrementing major version"
+        elif [[ "$COMMIT_MSG" =~ ^feat ]]; then
+          # New feature - increment minor version
+          minor=$((minor + 1))
+          patch=0
+          echo "✨ New feature detected - incrementing minor version"
+        elif [[ "$COMMIT_MSG" =~ ^(fix|revert) ]]; then
+          # Bug fix or revert - increment patch version
+          patch=$((patch + 1))
+          echo "🐛 Bug fix/revert detected - incrementing patch version"
+        else
+          echo "ℹ️ No version increment needed for this commit type"
+          exit 0
+        fi
+        
+        NEW_VERSION="$major.$minor.$patch"
+        echo "📝 Updating version from $CURRENT_VERSION to $NEW_VERSION"
+        
+        # Update the version in the PHP file
+        sed -i "s/Version: $CURRENT_VERSION/Version: $NEW_VERSION/" 4climbers-wordpress-express-integration.php
+        
+        # Verify the change
+        grep "Version:" 4climbers-wordpress-express-integration.php
+        
+        # Publish the new version as output
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
     - name: Deploy via FTP
       if: steps.check-commit.outputs.should_deploy == 'true'
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -61,3 +107,30 @@ jobs:
           **/.git*/**
           .github/
           README.md
+
+    - name: Commit & Push
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      run: |
+        git config user.name "GitHub Actions CLI"
+        git config user.email "actionscli@github.com"
+        git add 4climbers-wordpress-express-integration.php
+        git commit -m "chore: release v${{ steps.get_new_version.outputs.new-version }}"
+        git push origin develop
+
+
+    - name: Notify Telegram of new Release
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      uses: appleboy/telegram-action@v0.1.0
+      with:
+        to: ${{ secrets.TELEGRAM_TO }}
+        token: ${{ secrets.TELEGRAM_TOKEN }}
+        message: |
+          🎉 *NUOVA VERSIONE DEL PLUGIN WORDPRESS RILASCIATA!* 🎉
+
+          🆕 *Versione:* `${{ steps.get_new_version.outputs.new-version }}`
+          👑 *Ambiente:* staging
+          ✏️ *Commit:* _${{ steps.commit_info.outputs.commit_message }}_
+          🕒 *Data:* `${{ steps.commit_info.outputs.commit_timestamp }}`
+
+          🚀 _Let's Goooooo!_
+        format: Markdown
