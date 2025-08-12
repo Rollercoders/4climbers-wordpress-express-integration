@@ -24,6 +24,13 @@ jobs:
           echo "Commit message: $COMMIT_MSG"
         fi
 
+    - name: Capture commit info
+      if: steps.check-commit.outputs.should_deploy == 'true'
+      id: commit_info
+      run: |
+        echo "commit_message=${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+        echo "commit_timestamp=${{ github.event.head_commit.timestamp }}" >> $GITHUB_OUTPUT
+
     - name: Setup PHP
       if: steps.check-commit.outputs.should_deploy == 'true'
       uses: shivammathur/setup-php@v2
@@ -121,6 +128,9 @@ jobs:
           🎉 *NUOVA VERSIONE DEL PLUGIN WORDPRESS RILASCIATA!* 🎉
 
           🆕 *Versione:* `${{ steps.get_new_version.outputs.new-version }}`
+          👑 *Ambiente:* staging
+          ✏️ *Commit:* _${{ steps.commit_info.outputs.commit_message }}_
+          🕒 *Data:* `${{ steps.commit_info.outputs.commit_timestamp }}`
 
           🚀 _Let's Goooooo!_
         format: Markdown
