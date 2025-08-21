@@ -109,7 +109,7 @@ jobs:
           README.md
 
     - name: Commit & Push
-      if: steps.check-commit.outputs.should_deploy == 'true'
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       run: |
         git config user.name "GitHub Actions CLI"
         git config user.email "actionscli@github.com"
@@ -119,7 +119,7 @@ jobs:
 
 
     - name: Notify Telegram of new Release
-      if: steps.check-commit.outputs.should_deploy == 'true'
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       uses: appleboy/telegram-action@v0.1.0
       with:
         to: ${{ secrets.TELEGRAM_TO }}
