@@ -109,7 +109,7 @@ jobs:
           README.md
 
     - name: Commit & Push
-      if: steps.check-commit.outputs.should_deploy == 'true'
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       run: |
         git config user.name "GitHub Actions CLI"
         git config user.email "actionscli@github.com"
