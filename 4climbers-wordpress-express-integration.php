@@ -255,8 +255,15 @@ function wc_handle_firebase_login() {
                     WC()->cart->remove_cart_item($cart_item_key);
                 }
             }
-            
+
+            debug_log('wc_handle_firebase_login', 'Removed previous premium subscriptions from cart');
+            debug_log('wc_handle_firebase_login', 'Cart is: ' . print_r(WC()->cart->get_cart(), true));
+
             WC()->cart->add_to_cart(PREMIUM_SUBSCRIPTION_ITEM_ID);
+
+            debug_log('wc_handle_firebase_login', 'Added new premium subscription to cart');
+            debug_log('wc_handle_firebase_login', 'Cart is: ' . print_r(WC()->cart->get_cart(), true));
+
             wp_redirect(wc_get_checkout_url());
         } else {
             wp_redirect(home_url('/prodotto/premium-subscription/'));
