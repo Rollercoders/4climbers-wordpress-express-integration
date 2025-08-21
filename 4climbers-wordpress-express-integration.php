@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.5.0
+ * Version: 1.5.1-rc.1
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -247,7 +247,13 @@ function wc_handle_firebase_login() {
         wp_set_auth_cookie($user->ID, true);
         do_action('wp_login', $user->user_login, $user);
 
-        wp_redirect(home_url('/prodotto/premium-subscription/'));
+        // Add premium subscription to cart and redirect to checkout
+        if (defined('PREMIUM_SUBSCRIPTION_ITEM_ID')) {
+            WC()->cart->add_to_cart(PREMIUM_SUBSCRIPTION_ITEM_ID);
+            wp_redirect(wc_get_checkout_url());
+        } else {
+            wp_redirect(home_url('/prodotto/premium-subscription/'));
+        }
         exit;
 
     } catch (\Throwable $e) {
