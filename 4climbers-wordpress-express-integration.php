@@ -49,7 +49,7 @@ add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
 function wc_maybe_hook_firebase_login() {
     if (isset($_GET['firebase_login']) && isset($_GET['token'])) {
-        add_action('init', 'wc_handle_firebase_login', 1);
+        add_action('wp_loaded', 'wc_handle_firebase_login', 1);
     }
 }
 
