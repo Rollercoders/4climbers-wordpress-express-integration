@@ -249,6 +249,13 @@ function wc_handle_firebase_login() {
 
         // Add premium subscription to cart and redirect to checkout
         if (defined('PREMIUM_SUBSCRIPTION_ITEM_ID')) {
+            // Remove any existing products with the same ID from cart
+            foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+                if ($cart_item['product_id'] == PREMIUM_SUBSCRIPTION_ITEM_ID) {
+                    WC()->cart->remove_cart_item($cart_item_key);
+                }
+            }
+            
             WC()->cart->add_to_cart(PREMIUM_SUBSCRIPTION_ITEM_ID);
             wp_redirect(wc_get_checkout_url());
         } else {
