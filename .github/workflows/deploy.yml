@@ -119,7 +119,7 @@ jobs:
 
 
     - name: Notify Telegram of new Release
-      if: steps.check-commit.outputs.should_deploy == 'true'
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       uses: appleboy/telegram-action@v0.1.0
       with:
         to: ${{ secrets.TELEGRAM_TO }}
