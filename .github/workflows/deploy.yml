@@ -15,7 +15,12 @@ jobs:
       id: check-commit
       run: |
         COMMIT_MSG=$(git log -1 --pretty=format:"%s")
-        if [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
+
+        # Deploy sempre su master, controlla il messaggio solo su develop
+        if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+          echo "✅ Master branch - deploying to production"
+        elif [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
         else
@@ -93,8 +98,8 @@ jobs:
         # Publish the new version as output
         echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-    - name: Deploy via FTP
-      if: steps.check-commit.outputs.should_deploy == 'true'
+    - name: Deploy via FTP (Staging)
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -108,17 +113,31 @@ jobs:
           .github/
           README.md
 
-    - name: Commit & Push
-      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
+    - name: Deploy via FTP (Production)
+      if: github.ref == 'refs/heads/master'
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME_PROD }}
+        password: ${{ secrets.FTP_PASSWORD_PROD }}
+        local-dir: ./
+        server-dir: /public_html/wp-content/plugins/4climbers-wordpress-express-integration/
+        exclude: |
+          **/.git*
+          **/.git*/**
+          .github/
+          README.md
+
+    - name: Create Release Tag
+      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop' && steps.get_new_version.outputs.new-version != ''
       run: |
         git config user.name "GitHub Actions CLI"
         git config user.email "actionscli@github.com"
-        git add 4climbers-wordpress-express-integration.php
-        git commit -m "chore: release v${{ steps.get_new_version.outputs.new-version }}"
-        git push origin develop
+        git tag -a "v${{ steps.get_new_version.outputs.new-version }}" -m "Release version ${{ steps.get_new_version.outputs.new-version }}"
+        git push origin "v${{ steps.get_new_version.outputs.new-version }}"
 
 
-    - name: Notify Telegram of new Release
+    - name: Notify Telegram (Staging)
       if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
       uses: appleboy/telegram-action@v0.1.0
       with:
@@ -133,4 +152,26 @@ jobs:
           🕒 *Data:* `${{ steps.commit_info.outputs.commit_timestamp }}`
 
           🚀 _Let's Goooooo!_
+        format: Markdown
+
+    - name: Capture commit info for production
+      if: github.ref == 'refs/heads/master'
+      id: commit_info_prod
+      run: |
+        echo "commit_timestamp=${{ github.event.head_commit.timestamp }}" >> $GITHUB_OUTPUT
+
+    - name: Notify Telegram (Production)
+      if: github.ref == 'refs/heads/master'
+      uses: appleboy/telegram-action@v0.1.0
+      with:
+        to: ${{ secrets.TELEGRAM_TO }}
+        token: ${{ secrets.TELEGRAM_TOKEN }}
+        message: |
+          🚀 *DEPLOY IN PRODUZIONE COMPLETATO!* 🚀
+
+          📦 *Plugin:* 4Climbers WordPress Express Integration
+          👑 *Ambiente:* production
+          🕒 *Data:* `${{ steps.commit_info_prod.outputs.commit_timestamp }}`
+
+          ✅ _Deploy completato con successo!_
         format: Markdown
