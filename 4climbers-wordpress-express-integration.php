@@ -113,6 +113,9 @@ function delete_user_from_app($request) {
         return new WP_Error('missing_data', 'Utente non trovato', ['status' => 404]);
     }
 
+    // Include WordPress admin functions for wp_delete_user()
+    require_once(ABSPATH . 'wp-admin/includes/user.php');
+
     $deleted = wp_delete_user($user->ID);
 
     if (!$deleted) {
