@@ -71,13 +71,6 @@ function create_user_from_app($request) {
 
     $email = sanitize_email($request->get_param('email'));
     $password = sanitize_text_field($request->get_param('password'));
-    $firstName = sanitize_text_field($request->get_param('firstName') ?? '');
-    $lastName = sanitize_text_field($request->get_param('lastName') ?? '');
-
-    $displayName = null;
-    if (!empty($firstName) && !empty($lastName)) {
-        $displayName = $firstName . ' ' . $lastName;
-    }
 
     if (!$email || !$password) {
         return new WP_Error('missing_data', 'Email o password mancante', ['status' => 400]);
@@ -98,9 +91,6 @@ function create_user_from_app($request) {
 
     wp_update_user([
         'ID' => $user_id,
-        'display_name' => $displayName,
-        'first_name' => $firstName,
-        'last_name' => $lastName,
         'role' => 'customer',
     ]);
 

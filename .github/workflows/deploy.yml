@@ -3,12 +3,10 @@ name: Deploy to Wordpress
 on:
   push:
     branches:
-      - develop
-    tags-ignore:
-      - '*-dev'
-  create:
+      - '**'
     tags:
-      - '*'
+      - '**'
+      - '!**-dev'
 
 jobs:
   deploy:
@@ -66,7 +64,7 @@ jobs:
 
     - name: Update version number
       id: get_new_version
-      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
+      if: steps.check-commit.outputs.should_deploy == 'true'
       run: |
         COMMIT_MSG=$(git log -1 --pretty=format:"%s")
         CURRENT_VERSION=$(grep -oP 'Version: \K[0-9]+\.[0-9]+\.[0-9]+' 4climbers-wordpress-express-integration.php)
@@ -106,7 +104,7 @@ jobs:
         echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
     - name: Deploy via FTP (Staging)
-      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
+      if: steps.check-commit.outputs.should_deploy == 'true'
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -145,7 +143,7 @@ jobs:
 
 
     - name: Notify Telegram (Staging)
-      if: steps.check-commit.outputs.should_deploy == 'true' && github.ref == 'refs/heads/develop'
+      if: steps.check-commit.outputs.should_deploy == 'true'
       uses: appleboy/telegram-action@v0.1.0
       with:
         to: ${{ secrets.TELEGRAM_TO }}
