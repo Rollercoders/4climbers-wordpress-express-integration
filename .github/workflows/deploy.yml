@@ -2,6 +2,13 @@ name: Deploy to Wordpress
 
 on:
   push:
+    branches:
+      - develop
+    tags-ignore:
+      - '*-dev'
+  create:
+    tags:
+      - '*'
 
 jobs:
   deploy:
@@ -16,10 +23,10 @@ jobs:
       run: |
         COMMIT_MSG=$(git log -1 --pretty=format:"%s")
 
-        # Deploy sempre su master, controlla il messaggio solo su develop
-        if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+        # Deploy sempre sui tag che non finiscono con -dev, controlla il messaggio solo su develop
+        if [[ "${{ github.ref }}" == refs/tags/* ]] && [[ ! "${{ github.ref }}" =~ -dev$ ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
-          echo "✅ Master branch - deploying to production"
+          echo "✅ Production tag detected - deploying to production"
         elif [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
@@ -114,7 +121,7 @@ jobs:
           README.md
 
     - name: Deploy via FTP (Production)
-      if: github.ref == 'refs/heads/master'
+      if: startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev')
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -133,8 +140,8 @@ jobs:
       run: |
         git config user.name "GitHub Actions CLI"
         git config user.email "actionscli@github.com"
-        git tag -a "v${{ steps.get_new_version.outputs.new-version }}" -m "Release version ${{ steps.get_new_version.outputs.new-version }}"
-        git push origin "v${{ steps.get_new_version.outputs.new-version }}"
+        git tag -a "${{ steps.get_new_version.outputs.new-version }}" -m "Release version ${{ steps.get_new_version.outputs.new-version }}"
+        git push origin "${{ steps.get_new_version.outputs.new-version }}"
 
 
     - name: Notify Telegram (Staging)
@@ -154,14 +161,16 @@ jobs:
           🚀 _Let's Goooooo!_
         format: Markdown
 
-    - name: Capture commit info for production
-      if: github.ref == 'refs/heads/master'
-      id: commit_info_prod
+    - name: Get tag version for production
+      if: startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev')
+      id: tag_version
       run: |
-        echo "commit_timestamp=${{ github.event.head_commit.timestamp }}" >> $GITHUB_OUTPUT
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        echo "commit_timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
 
     - name: Notify Telegram (Production)
-      if: github.ref == 'refs/heads/master'
+      if: startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev')
       uses: appleboy/telegram-action@v0.1.0
       with:
         to: ${{ secrets.TELEGRAM_TO }}
@@ -170,8 +179,9 @@ jobs:
           🚀 *DEPLOY IN PRODUZIONE COMPLETATO!* 🚀
 
           📦 *Plugin:* 4Climbers WordPress Express Integration
+          🆕 *Versione:* `${{ steps.tag_version.outputs.tag_name }}`
           👑 *Ambiente:* production
-          🕒 *Data:* `${{ steps.commit_info_prod.outputs.commit_timestamp }}`
+          🕒 *Data:* `${{ steps.tag_version.outputs.commit_timestamp }}`
 
           ✅ _Deploy completato con successo!_
         format: Markdown

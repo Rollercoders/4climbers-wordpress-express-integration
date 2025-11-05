@@ -36,6 +36,14 @@ add_action('rest_api_init', function () {
 });
 
 add_action('rest_api_init', function () {
+    register_rest_route('firebase/v1', '/update-user', [
+        'methods' => 'PATCH',
+        'callback' => 'update_user_from_app',
+        'permission_callback' => '__return_true',
+    ]);
+});
+
+add_action('rest_api_init', function () {
     register_rest_route('firebase/v1', '/delete-user/(?P<email>[^/]+)', [
         'methods' => 'DELETE',
         'callback' => 'delete_user_from_app',
@@ -63,7 +71,13 @@ function create_user_from_app($request) {
 
     $email = sanitize_email($request->get_param('email'));
     $password = sanitize_text_field($request->get_param('password'));
-    $displayName = sanitize_text_field($request->get_param('displayName') ?? '');
+    $firstName = sanitize_text_field($request->get_param('firstName') ?? '');
+    $lastName = sanitize_text_field($request->get_param('lastName') ?? '');
+
+    $displayName = null;
+    if (!empty($firstName) && !empty($lastName)) {
+        $displayName = $firstName . ' ' . $lastName;
+    }
 
     if (!$email || !$password) {
         return new WP_Error('missing_data', 'Email o password mancante', ['status' => 400]);
@@ -85,12 +99,81 @@ function create_user_from_app($request) {
     wp_update_user([
         'ID' => $user_id,
         'display_name' => $displayName,
+        'first_name' => $firstName,
+        'last_name' => $lastName,
         'role' => 'customer',
     ]);
 
     debug_log("create_user_from_app", "Utente creato da Express: " . $email);
 
     return ['success' => true, 'user_id' => $user_id];
+}
+
+function update_user_from_app($request) {
+    $secret = $request->get_header('X-WP-Secret');
+    $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
+
+    if ($secret !== $expressSecret) {
+        return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
+    }
+
+    $currentEmail = sanitize_email($request->get_param('currentEmail'));
+    $newEmail = sanitize_email($request->get_param('email') ?? '');
+    $password = sanitize_text_field($request->get_param('password') ?? '');
+    $firstName = sanitize_text_field($request->get_param('firstName') ?? '');
+    $lastName = sanitize_text_field($request->get_param('lastName') ?? '');
+
+    if (!$currentEmail) {
+        return new WP_Error('missing_data', 'Email corrente mancante', ['status' => 400]);
+    }
+
+    $user = get_user_by('email', $currentEmail);
+    if (!$user) {
+        debug_log("update_user_from_app", "Utente con email " . $currentEmail . " non trovato");
+        return new WP_Error('not_found', 'Utente non trovato', ['status' => 404]);
+    }
+
+    $update_data = ['ID' => $user->ID];
+
+    // Update email if provided and different
+    if (!empty($newEmail) && $newEmail !== $currentEmail) {
+        // Check if new email is already in use
+        $existing = get_user_by('email', $newEmail);
+        if ($existing && $existing->ID !== $user->ID) {
+            return new WP_Error('email_exists', 'Email già in uso da un altro utente', ['status' => 400]);
+        }
+        $update_data['user_email'] = $newEmail;
+    }
+
+    // Update password if provided
+    if (!empty($password)) {
+        $update_data['user_pass'] = $password;
+    }
+
+    // Update first name if provided
+    if (!empty($firstName)) {
+        $update_data['first_name'] = $firstName;
+    }
+
+    // Update last name if provided
+    if (!empty($lastName)) {
+        $update_data['last_name'] = $lastName;
+    }
+
+    // Update display name if both names are provided
+    if (!empty($firstName) && !empty($lastName)) {
+        $update_data['display_name'] = $firstName . ' ' . $lastName;
+    }
+
+    $result = wp_update_user($update_data);
+
+    if (is_wp_error($result)) {
+        return new WP_Error('update_error', 'Errore aggiornamento utente: ' . $result->get_error_message(), ['status' => 500]);
+    }
+
+    debug_log("update_user_from_app", "Utente aggiornato da Express: " . $currentEmail);
+
+    return ['success' => true, 'user_id' => $user->ID];
 }
 
 function delete_user_from_app($request) {
