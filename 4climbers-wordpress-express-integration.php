@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.6.0
+ * Version: 1.8.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -56,7 +56,7 @@ add_action('woocommerce_order_status_completed', 'wc_notify_order_completed');
 add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
 function wc_maybe_hook_firebase_login() {
-    if (isset($_GET['firebase_login']) && isset($_GET['token'])) {
+    if (isset($_GET['firebase_login']) && isset($_GET['token']) && isset($_GET['page'])) {
         add_action('wp_loaded', 'wc_handle_firebase_login', 1);
     }
 }
@@ -291,7 +291,7 @@ function wc_notify_order_completed($order_id) {
 }
 
 function wc_handle_firebase_login() {
-    if (!isset($_GET['firebase_login']) || !isset($_GET['token'])) {
+    if (!isset($_GET['firebase_login']) || !isset($_GET['token']) || !isset($_GET['page'])) {
         return;
     }
 
@@ -322,6 +322,12 @@ function wc_handle_firebase_login() {
         wp_set_current_user($user->ID);
         wp_set_auth_cookie($user->ID, true);
         do_action('wp_login', $user->user_login, $user);
+
+        $page = $_GET['page'];
+        if ($page !== 'checkout') {
+            wp_redirect(home_url("/$page"));
+            exit;
+        }
 
         // Add premium subscription to cart and redirect to checkout
         if (defined('PREMIUM_SUBSCRIPTION_ITEM_ID')) {
