@@ -25,7 +25,7 @@ jobs:
         if [[ "${{ github.ref }}" == refs/tags/* ]] && [[ ! "${{ github.ref }}" =~ -dev$ ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Production tag detected - deploying to production"
-        elif [[ "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]] || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
+        elif [[ ("${{github.ref}}" == refs/heads/develop && "$COMMIT_MSG" =~ ^(feat|fix:|revert:) ]]) || [[ "$COMMIT_MSG" == *"[DEPLOY]"* ]]; then
           echo "should_deploy=true" >> $GITHUB_OUTPUT
           echo "✅ Commit message starts with allowed prefix: $COMMIT_MSG"
         else
