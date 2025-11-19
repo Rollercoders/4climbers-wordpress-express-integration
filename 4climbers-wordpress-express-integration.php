@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.9.0
+ * Version: 1.9.1
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -329,7 +329,7 @@ function wc_handle_firebase_login() {
             exit;
         }
 
-        wp_redirect(home_url('/prodotto/premium-subscription/'));
+        wp_redirect(home_url('/prodotto/premium'));
         exit;
 
     } catch (\Throwable $e) {
