@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.8.0
+ * Version: 1.9.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -329,27 +329,7 @@ function wc_handle_firebase_login() {
             exit;
         }
 
-        // Add premium subscription to cart and redirect to checkout
-        if (defined('PREMIUM_SUBSCRIPTION_ITEM_ID')) {
-            // Remove any existing products with the same ID from cart
-            foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-                if ($cart_item['product_id'] == PREMIUM_SUBSCRIPTION_ITEM_ID) {
-                    WC()->cart->remove_cart_item($cart_item_key);
-                }
-            }
-
-            debug_log('wc_handle_firebase_login', 'Removed previous premium subscriptions from cart');
-            debug_log('wc_handle_firebase_login', 'Cart is: ' . print_r(WC()->cart->get_cart(), true));
-
-            WC()->cart->add_to_cart(PREMIUM_SUBSCRIPTION_ITEM_ID);
-
-            debug_log('wc_handle_firebase_login', 'Added new premium subscription to cart');
-            debug_log('wc_handle_firebase_login', 'Cart is: ' . print_r(WC()->cart->get_cart(), true));
-
-            wp_redirect(wc_get_checkout_url());
-        } else {
-            wp_redirect(home_url('/prodotto/premium-subscription/'));
-        }
+        wp_redirect(home_url('/prodotto/premium-subscription/'));
         exit;
 
     } catch (\Throwable $e) {
