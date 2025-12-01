@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.10.0
+ * Version: 1.10.1
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -372,24 +372,26 @@ function wc_handle_ios_cookie_banner() {
                 });
             }
 
-            // Rifiuta automaticamente i cookie quando Iubenda è pronto
-            window._iub = window._iub || [];
-            window._iub.csConfiguration = window._iub.csConfiguration || {};
-            window._iub.csConfiguration.callback = window._iub.csConfiguration.callback || {};
+            // Funzione per rifiutare i cookie
+            function rejectAllCookies() {
+                if (typeof _iub !== 'undefined' &&
+                    typeof _iub.cs !== 'undefined' &&
+                    typeof _iub.cs.api !== 'undefined') {
 
-            const originalOnReady = window._iub.csConfiguration.callback.onReady;
-            window._iub.csConfiguration.callback.onReady = function() {
-                if (typeof originalOnReady === 'function') {
-                    originalOnReady();
+                    if (typeof _iub.cs.api.rejectAll === 'function') {
+                        _iub.cs.api.rejectAll();
+                        console.log('Iubenda: cookie automaticamente rifiutati');
+                    }
                 }
+            }
 
-                // Rifiuta tutti i cookie
-                if (typeof _iub.cs !== 'undefined' &&
-                    typeof _iub.cs.api !== 'undefined' &&
-                    typeof _iub.cs.api.rejectConsentSolution === 'function') {
-                    _iub.cs.api.rejectConsentSolution();
-                }
-            };
+            // Prova a rifiutare immediatamente
+            rejectAllCookies();
+
+            // Riprova dopo un breve delay per essere sicuri che Iubenda sia caricato
+            setTimeout(rejectAllCookies, 100);
+            setTimeout(rejectAllCookies, 500);
+            setTimeout(rejectAllCookies, 1000);
 
             // Monitora DOM per banner caricati dinamicamente
             const observer = new MutationObserver(function(mutations) {
@@ -403,6 +405,8 @@ function wc_handle_ios_cookie_banner() {
                                 ))) {
                                 node.style.display = 'none';
                                 node.style.visibility = 'hidden';
+                                // Quando appare il banner, prova a rifiutare
+                                rejectAllCookies();
                             }
                         }
                     });
@@ -420,8 +424,13 @@ function wc_handle_ios_cookie_banner() {
                         childList: true,
                         subtree: true
                     });
+                    // Riprova dopo il DOM load
+                    rejectAllCookies();
                 });
             }
+
+            // Ascolta anche l'evento di caricamento della pagina
+            window.addEventListener('load', rejectAllCookies);
         }
     })();
     </script>
