@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.9.1
+ * Version: 1.10.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -54,6 +54,8 @@ add_action('rest_api_init', function () {
 add_action('woocommerce_order_status_completed', 'wc_notify_order_completed');
 
 add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
+
+add_action('wp_head', 'wc_handle_ios_cookie_banner', 1);
 
 function wc_maybe_hook_firebase_login() {
     if (isset($_GET['firebase_login']) && isset($_GET['token']) && isset($_GET['page'])) {
@@ -341,4 +343,87 @@ function debug_log($function, $message) {
     if (defined('WP_DEBUG') && WP_DEBUG) {
         error_log("[DEBUG][$function] $message");
     }
+}
+
+function wc_handle_ios_cookie_banner() {
+    ?>
+    <script>
+    (function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const showCookieBanner = urlParams.get('ios_show_cookie_banner');
+
+        if (showCookieBanner === '0') {
+            // Nascondi banner Iubenda con CSS
+            const style = document.createElement('style');
+            style.innerHTML = `
+                #iubenda-cs-banner,
+                .iubenda-cs-overlay,
+                .iubenda-cs-container {
+                    display: none !important;
+                    visibility: hidden !important;
+                }
+            `;
+
+            if (document.head) {
+                document.head.appendChild(style);
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.head.appendChild(style);
+                });
+            }
+
+            // Rifiuta automaticamente i cookie quando Iubenda è pronto
+            window._iub = window._iub || [];
+            window._iub.csConfiguration = window._iub.csConfiguration || {};
+            window._iub.csConfiguration.callback = window._iub.csConfiguration.callback || {};
+
+            const originalOnReady = window._iub.csConfiguration.callback.onReady;
+            window._iub.csConfiguration.callback.onReady = function() {
+                if (typeof originalOnReady === 'function') {
+                    originalOnReady();
+                }
+
+                // Rifiuta tutti i cookie
+                if (typeof _iub.cs !== 'undefined' &&
+                    typeof _iub.cs.api !== 'undefined' &&
+                    typeof _iub.cs.api.rejectConsentSolution === 'function') {
+                    _iub.cs.api.rejectConsentSolution();
+                }
+            };
+
+            // Monitora DOM per banner caricati dinamicamente
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) {
+                            if (node.id === 'iubenda-cs-banner' ||
+                                (node.classList && (
+                                    node.classList.contains('iubenda-cs-overlay') ||
+                                    node.classList.contains('iubenda-cs-container')
+                                ))) {
+                                node.style.display = 'none';
+                                node.style.visibility = 'hidden';
+                            }
+                        }
+                    });
+                });
+            });
+
+            if (document.body) {
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true
+                    });
+                });
+            }
+        }
+    })();
+    </script>
+    <?php
 }
