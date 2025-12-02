@@ -326,12 +326,19 @@ function wc_handle_firebase_login() {
         do_action('wp_login', $user->user_login, $user);
 
         $page = $_GET['page'];
+
+        // Forward ios_show_cookie_banner parameter if present
+        $queryString = '';
+        if (isset($_GET['ios_show_cookie_banner'])) {
+            $queryString = '?ios_show_cookie_banner=' . sanitize_text_field($_GET['ios_show_cookie_banner']);
+        }
+
         if ($page !== 'checkout') {
-            wp_redirect(home_url("/$page"));
+            wp_redirect(home_url("/$page" . $queryString));
             exit;
         }
 
-        wp_redirect(home_url('/prodotto/premium'));
+        wp_redirect(home_url('/prodotto/premium' . $queryString));
         exit;
 
     } catch (\Throwable $e) {
