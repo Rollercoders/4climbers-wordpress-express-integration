@@ -139,7 +139,7 @@ jobs:
         git config user.name "GitHub Actions CLI"
         git config user.email "actionscli@github.com"
         git tag -a "${{ steps.get_new_version.outputs.new-version }}-dev" -m "Release version ${{ steps.get_new_version.outputs.new-version }}"
-        git push origin "${{ steps.get_new_version.outputs.new-version }}"
+        git push origin "${{ steps.get_new_version.outputs.new-version }}-dev"
 
 
     - name: Notify Telegram (Staging)
