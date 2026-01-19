@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.11.0
+ * Version: 1.12.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -252,20 +252,22 @@ function wc_notify_order_completed($order_id) {
         $items[] = $item->get_product_id();
     }
 
-    $premiumId = defined('PREMIUM_SUBSCRIPTION_ITEM_ID') ? PREMIUM_SUBSCRIPTION_ITEM_ID : null;
+    $premiumIds = defined('PREMIUM_SUBSCRIPTION_ITEM_IDS') ? PREMIUM_SUBSCRIPTION_ITEM_IDS : [];
 
-    if (!in_array($premiumId, $items)) {
+    $matchedIds = array_intersect($premiumIds, $items);
+    if (empty($matchedIds)) {
         debug_log("wc_notify_order_completed", "User did not purchased premium subscription in this order.");
-        debug_log("wc_notify_order_completed", "premiumId: $premiumId - items: " . print_r($items, true));
         return;
     }
 
-    debug_log("wc_notify_order_completed", "User purchased premium subscription in this order.");
+    $matchedItemId = reset($matchedIds);
+    debug_log("wc_notify_order_completed", "User purchased premium subscription in this order. Matched item ID: $matchedItemId");
 
     $payload = json_encode([
         'email' => sanitize_email($email),
         'total' => floatval($total),
         'orderId' => $order_id,
+        'itemId' => $matchedItemId,
     ]);
 
     $url = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
