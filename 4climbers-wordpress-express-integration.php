@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.12.0
+ * Version: 1.13.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -241,6 +241,7 @@ function wc_register_user_on_firebase($user_id) {
 }
 
 function wc_notify_order_completed($order_id) {
+    debug_log("wc_notify_order_completed", "Notifica ordine completato per ordine ID: $order_id");
     $order = wc_get_order($order_id);
     if (!$order) return;
 
