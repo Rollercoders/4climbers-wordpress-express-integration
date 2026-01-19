@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.13.0
+ * Version: 1.13.3
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -51,7 +51,7 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-add_action('woocommerce_order_status_completed', 'wc_notify_order_completed');
+add_action('woocommerce_order_status_processing', 'wc_notify_order_processing', 10, 1);
 
 add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
@@ -240,58 +240,115 @@ function wc_register_user_on_firebase($user_id) {
     }
 }
 
-function wc_notify_order_completed($order_id) {
-    debug_log("wc_notify_order_completed", "Notifica ordine completato per ordine ID: $order_id");
+function wc_notify_order_processing($order_id) {
+    // 1️⃣ LOG: la funzione è partita
+    debug_log('wc_notify_order_processing', "Hook processing partito per ordine $order_id");
+
+    // 2️⃣ Recupero ordine
     $order = wc_get_order($order_id);
-    if (!$order) return;
-
-    $email = $order->get_billing_email();
-    $total = $order->get_total();
-
-    $items = [];
-    foreach ($order->get_items() as $item_id => $item) {
-        $items[] = $item->get_product_id();
-    }
-
-    $premiumIds = defined('PREMIUM_SUBSCRIPTION_ITEM_IDS') ? PREMIUM_SUBSCRIPTION_ITEM_IDS : [];
-
-    $matchedIds = array_intersect($premiumIds, $items);
-    if (empty($matchedIds)) {
-        debug_log("wc_notify_order_completed", "User did not purchased premium subscription in this order.");
+    if (!$order) {
+        debug_log('wc_notify_order_processing', "Ordine $order_id NON trovato");
         return;
     }
 
-    $matchedItemId = reset($matchedIds);
-    debug_log("wc_notify_order_completed", "User purchased premium subscription in this order. Matched item ID: $matchedItemId");
+    // 3️⃣ EVITA DOPPIONI (idempotenza)
+    if (get_post_meta($order_id, '_4climbers_synced', true)) {
+        debug_log('wc_notify_order_processing', "Ordine $order_id già sincronizzato, skip");
+        return;
+    }
 
+    // 4️⃣ Email e totale
+    $email = $order->get_billing_email();
+    $total = (float) $order->get_total();
+
+    // 5️⃣ Raccolta prodotti acquistati
+    $purchasedProductIds = [];
+
+    foreach ($order->get_items() as $item) {
+        $variationId = $item->get_variation_id();
+        $productId   = $item->get_product_id();
+
+        // Se esiste una variante, usiamo quella
+        $purchasedProductIds[] = $variationId ?: $productId;
+    }
+
+    debug_log(
+        'wc_notify_order_processing',
+        'Prodotti acquistati: ' . implode(', ', $purchasedProductIds)
+    );
+
+    // 6️⃣ Prodotti premium che ci interessano
+    $premiumIds = defined('PREMIUM_SUBSCRIPTION_ITEM_IDS')
+        ? PREMIUM_SUBSCRIPTION_ITEM_IDS
+        : [];
+
+    // 7️⃣ Verifica se l’utente ha comprato un premium
+    $matched = array_intersect($premiumIds, $purchasedProductIds);
+
+    if (empty($matched)) {
+        debug_log('wc_notify_order_processing', 'Nessun prodotto premium in questo ordine');
+        return;
+    }
+
+    // Ne prendiamo uno (per ora)
+    $matchedProductId = reset($matched);
+
+    debug_log(
+        'wc_notify_order_processing',
+        "Prodotto premium trovato: $matchedProductId"
+    );
+
+    // 8️⃣ Costruzione payload
     $payload = json_encode([
-        'email' => sanitize_email($email),
-        'total' => floatval($total),
+        'email'   => sanitize_email($email),
+        'total'   => $total,
         'orderId' => $order_id,
-        'itemId' => $matchedItemId,
+        'itemId'  => $matchedProductId,
     ]);
 
-    $url = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
+    // 9️⃣ Endpoint backend
+    $url    = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
     $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
-    if (!$url || !$secret) return;
+    if (!$url || !$secret) {
+        debug_log('wc_notify_order_processing', 'URL o SECRET mancanti');
+        return;
+    }
 
-    debug_log("wc_notify_order_completed", "Invio ordine completato a backend: $payload");
+    debug_log('wc_notify_order_processing', "Invio payload: $payload");
 
-    $res = wp_remote_request($url, [
-        'method' => 'PATCH',
+    // 🔟 Chiamata HTTP
+    $response = wp_remote_request($url, [
+        'method'  => 'PATCH',
+        'timeout' => 10,
         'headers' => [
             'Content-Type' => 'application/json',
-            'X-WP-Secret' => $secret,
+            'X-WP-Secret'  => $secret,
         ],
         'body' => $payload,
-        'timeout' => 10,
     ]);
 
-    if (is_wp_error($res)) {
-        debug_log("wc_notify_order_completed", "ERRORE ORDINE: " . $res->get_error_message());
-    } else {
-        debug_log("wc_notify_order_completed", "ORDINE STATUS: " . wp_remote_retrieve_response_code($res));
+    // 1️⃣1️⃣ Gestione risposta
+    if (is_wp_error($response)) {
+        debug_log(
+            'wc_notify_order_processing',
+            'ERRORE HTTP: ' . $response->get_error_message()
+        );
+        return;
+    }
+
+    $status = wp_remote_retrieve_response_code($response);
+    $body   = wp_remote_retrieve_body($response);
+
+    debug_log(
+        'wc_notify_order_processing',
+        "Risposta backend: HTTP $status – $body"
+    );
+
+    // 1️⃣2️⃣ Segna ordine come sincronizzato SOLO se ok
+    if ($status >= 200 && $status < 300) {
+        update_post_meta($order_id, '_4climbers_synced', '1');
+        debug_log('wc_notify_order_processing', "Ordine $order_id marcato come sincronizzato");
     }
 }
 
