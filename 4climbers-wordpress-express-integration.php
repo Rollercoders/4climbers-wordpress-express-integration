@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.13.4
+ * Version: 1.13.5
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -51,7 +51,8 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-add_action('woocommerce_order_status_processing', 'wc_notify_order_processing', 10, 1);
+add_action('woocommerce_order_status_processing', 'wc_notify_order_trigger', 10, 1);
+add_action('woocommerce_order_status_completed', 'wc_notify_order_trigger', 10, 1);
 
 add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
@@ -238,6 +239,30 @@ function wc_register_user_on_firebase($user_id) {
         debug_log("wc_register_user_on_firebase", "STATUS: " . wp_remote_retrieve_response_code($res));
         debug_log("wc_register_user_on_firebase", "RISPOSTA: " . wp_remote_retrieve_body($res));
     }
+}
+
+function wc_notify_order_trigger($order_id) {
+    // Evita doppioni
+    if (get_post_meta($order_id, '_4climbers_webhook_sent', true)) {
+        debug_log('wc_notify_order_trigger', "Webhook già inviato per ordine $order_id");
+        return;
+    }
+
+    $order = wc_get_order($order_id);
+    if (!$order) return;
+
+    // Stati ammessi
+    $status = $order->get_status();
+
+    if (!in_array($status, ['processing', 'completed'], true)) {
+        return;
+    }
+
+    // Qui chiami la TUA funzione vera
+    wc_notify_order_processing($order_id);
+
+    // Marca come inviato
+    update_post_meta($order_id, '_4climbers_webhook_sent', '1');
 }
 
 function wc_notify_order_processing($order_id) {
