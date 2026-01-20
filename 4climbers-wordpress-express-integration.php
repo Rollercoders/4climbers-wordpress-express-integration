@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.13.3
+ * Version: 1.13.4
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -338,11 +338,10 @@ function wc_notify_order_processing($order_id) {
     }
 
     $status = wp_remote_retrieve_response_code($response);
-    $body   = wp_remote_retrieve_body($response);
 
     debug_log(
         'wc_notify_order_processing',
-        "Risposta backend: HTTP $status – $body"
+        "Risposta backend: HTTP $status"
     );
 
     // 1️⃣2️⃣ Segna ordine come sincronizzato SOLO se ok
