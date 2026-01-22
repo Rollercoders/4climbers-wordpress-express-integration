@@ -2,11 +2,27 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.13.5
+ * Version: 1.14.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
 use Kreait\Firebase\Factory;
+
+add_action('init', function() {
+    $productsInCategory = get_posts([
+        'post_type' => 'product',
+        'posts_per_page' => -1,
+        'tax_query' => [
+            [
+                'taxonomy' => 'product_cat',
+                'field' => 'name',
+                'terms' => 'App',
+            ],
+        ],
+        'fields' => 'ids',
+    ]);
+    print_r($productsInCategory);
+});
 
 add_action('user_register', 'wc_register_user_on_firebase', 10, 1);
 
@@ -302,10 +318,32 @@ function wc_notify_order_processing($order_id) {
         'Prodotti acquistati: ' . implode(', ', $purchasedProductIds)
     );
 
-    // 6️⃣ Prodotti premium che ci interessano
-    $premiumIds = defined('PREMIUM_SUBSCRIPTION_ITEM_IDS')
-        ? PREMIUM_SUBSCRIPTION_ITEM_IDS
-        : [];
+    // 6️⃣ Prodotti premium che ci interessano (tutti i prodotti della categoria "App")
+    $premiumIds = [];
+    $productsInCategory = get_posts([
+        'post_type' => 'product',
+        'posts_per_page' => -1,
+        'tax_query' => [
+            [
+                'taxonomy' => 'product_cat',
+                'field' => 'name',
+                'terms' => 'App',
+            ],
+        ],
+        'fields' => 'ids',
+    ]);
+
+    foreach ($productsInCategory as $productId) {
+        $product = wc_get_product($productId);
+        if ($product) {
+            $premiumIds[] = $productId;
+            // Se è un prodotto variabile, aggiungiamo anche le varianti
+            if ($product->is_type('variable')) {
+                $variations = $product->get_children();
+                $premiumIds = array_merge($premiumIds, $variations);
+            }
+        }
+    }
 
     // 7️⃣ Verifica se l’utente ha comprato un premium
     $matched = array_intersect($premiumIds, $purchasedProductIds);
