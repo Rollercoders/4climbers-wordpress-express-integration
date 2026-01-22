@@ -8,22 +8,6 @@
 
 use Kreait\Firebase\Factory;
 
-add_action('init', function() {
-    $productsInCategory = get_posts([
-        'post_type' => 'product',
-        'posts_per_page' => -1,
-        'tax_query' => [
-            [
-                'taxonomy' => 'product_cat',
-                'field' => 'name',
-                'terms' => 'App',
-            ],
-        ],
-        'fields' => 'ids',
-    ]);
-    print_r($productsInCategory);
-});
-
 add_action('user_register', 'wc_register_user_on_firebase', 10, 1);
 
 add_filter('woocommerce_new_customer_data', function ($customer_data) {
@@ -275,26 +259,26 @@ function wc_notify_order_trigger($order_id) {
     }
 
     // Qui chiami la TUA funzione vera
-    wc_notify_order_processing($order_id);
+    wc_notify_order($order_id);
 
     // Marca come inviato
     update_post_meta($order_id, '_4climbers_webhook_sent', '1');
 }
 
-function wc_notify_order_processing($order_id) {
+function wc_notify_order($order_id) {
     // 1️⃣ LOG: la funzione è partita
-    debug_log('wc_notify_order_processing', "Hook processing partito per ordine $order_id");
+    debug_log('wc_notify_order', "Hook processing partito per ordine $order_id");
 
     // 2️⃣ Recupero ordine
     $order = wc_get_order($order_id);
     if (!$order) {
-        debug_log('wc_notify_order_processing', "Ordine $order_id NON trovato");
+        debug_log('wc_notify_order', "Ordine $order_id NON trovato");
         return;
     }
 
     // 3️⃣ EVITA DOPPIONI (idempotenza)
     if (get_post_meta($order_id, '_4climbers_synced', true)) {
-        debug_log('wc_notify_order_processing', "Ordine $order_id già sincronizzato, skip");
+        debug_log('wc_notify_order', "Ordine $order_id già sincronizzato, skip");
         return;
     }
 
@@ -314,7 +298,7 @@ function wc_notify_order_processing($order_id) {
     }
 
     debug_log(
-        'wc_notify_order_processing',
+        'wc_notify_order',
         'Prodotti acquistati: ' . implode(', ', $purchasedProductIds)
     );
 
@@ -349,7 +333,7 @@ function wc_notify_order_processing($order_id) {
     $matched = array_intersect($premiumIds, $purchasedProductIds);
 
     if (empty($matched)) {
-        debug_log('wc_notify_order_processing', 'Nessun prodotto premium in questo ordine');
+        debug_log('wc_notify_order', 'Nessun prodotto premium in questo ordine');
         return;
     }
 
@@ -357,7 +341,7 @@ function wc_notify_order_processing($order_id) {
     $matchedProductId = reset($matched);
 
     debug_log(
-        'wc_notify_order_processing',
+        'wc_notify_order',
         "Prodotto premium trovato: $matchedProductId"
     );
 
@@ -374,11 +358,11 @@ function wc_notify_order_processing($order_id) {
     $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
     if (!$url || !$secret) {
-        debug_log('wc_notify_order_processing', 'URL o SECRET mancanti');
+        debug_log('wc_notify_order', 'URL o SECRET mancanti');
         return;
     }
 
-    debug_log('wc_notify_order_processing', "Invio payload: $payload");
+    debug_log('wc_notify_order', "Invio payload: $payload");
 
     // 🔟 Chiamata HTTP
     $response = wp_remote_request($url, [
@@ -394,7 +378,7 @@ function wc_notify_order_processing($order_id) {
     // 1️⃣1️⃣ Gestione risposta
     if (is_wp_error($response)) {
         debug_log(
-            'wc_notify_order_processing',
+            'wc_notify_order',
             'ERRORE HTTP: ' . $response->get_error_message()
         );
         return;
@@ -403,14 +387,14 @@ function wc_notify_order_processing($order_id) {
     $status = wp_remote_retrieve_response_code($response);
 
     debug_log(
-        'wc_notify_order_processing',
+        'wc_notify_order',
         "Risposta backend: HTTP $status"
     );
 
     // 1️⃣2️⃣ Segna ordine come sincronizzato SOLO se ok
     if ($status >= 200 && $status < 300) {
         update_post_meta($order_id, '_4climbers_synced', '1');
-        debug_log('wc_notify_order_processing', "Ordine $order_id marcato come sincronizzato");
+        debug_log('wc_notify_order', "Ordine $order_id marcato come sincronizzato");
     }
 }
 
