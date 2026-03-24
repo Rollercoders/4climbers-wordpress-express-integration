@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.15.0
+ * Version: 1.16.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -51,6 +51,14 @@ add_action('rest_api_init', function () {
     ]);
 });
 
+add_action('rest_api_init', function () {
+    register_rest_route('firebase/v1', '/products', [
+        'methods' => 'GET',
+        'callback' => 'get_products_from_app',
+        'permission_callback' => '__return_true',
+    ]);
+});
+
 add_action('woocommerce_order_status_processing', 'wc_notify_order_trigger', 10, 1);
 add_action('woocommerce_order_status_completed', 'wc_notify_order_trigger', 10, 1);
 
@@ -58,13 +66,15 @@ add_action('plugins_loaded', 'wc_maybe_hook_firebase_login');
 
 add_action('wp_head', 'wc_handle_ios_cookie_banner', 1);
 
-function wc_maybe_hook_firebase_login() {
+function wc_maybe_hook_firebase_login()
+{
     if (isset($_GET['firebase_login']) && isset($_GET['token']) && isset($_GET['page'])) {
         add_action('wp_loaded', 'wc_handle_firebase_login', 1);
     }
 }
 
-function create_user_from_app($request) {
+function create_user_from_app($request)
+{
     $secret = $request->get_header('X-WP-Secret');
     $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
@@ -102,7 +112,8 @@ function create_user_from_app($request) {
     return ['success' => true, 'user_id' => $user_id];
 }
 
-function update_user_from_app($request) {
+function update_user_from_app($request)
+{
     $secret = $request->get_header('X-WP-Secret');
     $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
@@ -169,7 +180,8 @@ function update_user_from_app($request) {
     return ['success' => true, 'user_id' => $user->ID];
 }
 
-function delete_user_from_app($request) {
+function delete_user_from_app($request)
+{
     $secret = $request->get_header('X-WP-Secret');
     $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
@@ -203,9 +215,72 @@ function delete_user_from_app($request) {
     return ['success' => true];
 }
 
-function wc_register_user_on_firebase($user_id) {
+function get_products_from_app($request)
+{
+    $secret = $request->get_header('X-WP-Secret');
+    $expressSecret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
+
+    if ($secret !== $expressSecret) {
+        return new WP_Error('forbidden', 'Unauthorized', ['status' => 403]);
+    }
+
+    $productPosts = get_posts([
+        'post_type' => 'product',
+        'posts_per_page' => -1,
+        'tax_query' => [
+            [
+                'taxonomy' => 'product_cat',
+                'field' => 'name',
+                'terms' => 'App',
+            ],
+        ],
+        'fields' => 'ids',
+    ]);
+
+    $products = [];
+
+    foreach ($productPosts as $productId) {
+        $product = wc_get_product($productId);
+        if (!$product)
+            continue;
+
+        if ($product->is_type('variable')) {
+            foreach ($product->get_children() as $variationId) {
+                $variation = wc_get_product($variationId);
+                if (!$variation)
+                    continue;
+
+                $products[] = [
+                    'id' => $variationId,
+                    'parent_id' => $productId,
+                    'name' => $product->get_name() . ' - ' . implode(', ', $variation->get_variation_attributes()),
+                    'regular_price' => $variation->get_regular_price(),
+                    'sale_price' => $variation->is_on_sale() ? $variation->get_sale_price() : null,
+                    'is_on_sale' => $variation->is_on_sale(),
+                ];
+            }
+        } else {
+            $products[] = [
+                'id' => $productId,
+                'parent_id' => null,
+                'name' => $product->get_name(),
+                'regular_price' => $product->get_regular_price(),
+                'sale_price' => $product->is_on_sale() ? $product->get_sale_price() : null,
+                'is_on_sale' => $product->is_on_sale(),
+            ];
+        }
+    }
+
+    debug_log('get_products_from_app', 'Prodotti restituiti: ' . count($products));
+
+    return $products;
+}
+
+function wc_register_user_on_firebase($user_id)
+{
     $user = get_userdata($user_id);
-    if (!$user || !$user->user_email) return;
+    if (!$user || !$user->user_email)
+        return;
     $email = sanitize_email($user->user_email);
 
     $data = get_transient('firebase_sync_' . $email);
@@ -241,7 +316,8 @@ function wc_register_user_on_firebase($user_id) {
     }
 }
 
-function wc_notify_order_trigger($order_id) {
+function wc_notify_order_trigger($order_id)
+{
     // Evita doppioni
     if (get_post_meta($order_id, '_4climbers_webhook_sent', true)) {
         debug_log('wc_notify_order_trigger', "Webhook già inviato per ordine $order_id");
@@ -249,7 +325,8 @@ function wc_notify_order_trigger($order_id) {
     }
 
     $order = wc_get_order($order_id);
-    if (!$order) return;
+    if (!$order)
+        return;
 
     // Stati ammessi
     $status = $order->get_status();
@@ -265,7 +342,8 @@ function wc_notify_order_trigger($order_id) {
     update_post_meta($order_id, '_4climbers_webhook_sent', '1');
 }
 
-function wc_notify_order($order_id) {
+function wc_notify_order($order_id)
+{
     // 1️⃣ LOG: la funzione è partita
     debug_log('wc_notify_order', "Hook processing partito per ordine $order_id");
 
@@ -291,7 +369,7 @@ function wc_notify_order($order_id) {
 
     foreach ($order->get_items() as $item) {
         $variationId = $item->get_variation_id();
-        $productId   = $item->get_product_id();
+        $productId = $item->get_product_id();
 
         // Se esiste una variante, usiamo quella
         $purchasedProductIds[] = $variationId ?: $productId;
@@ -347,14 +425,14 @@ function wc_notify_order($order_id) {
 
     // 8️⃣ Costruzione payload
     $payload = json_encode([
-        'email'   => sanitize_email($email),
-        'total'   => $total,
+        'email' => sanitize_email($email),
+        'total' => $total,
         'orderId' => $order_id,
-        'itemId'  => $matchedProductId,
+        'itemId' => $matchedProductId,
     ]);
 
     // 9️⃣ Endpoint backend
-    $url    = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
+    $url = defined('EXPRESS_ORDER_ENDPOINT') ? EXPRESS_ORDER_ENDPOINT : null;
     $secret = defined('EXPRESS_SYNC_SECRET') ? EXPRESS_SYNC_SECRET : null;
 
     if (!$url || !$secret) {
@@ -366,11 +444,11 @@ function wc_notify_order($order_id) {
 
     // 🔟 Chiamata HTTP
     $response = wp_remote_request($url, [
-        'method'  => 'PATCH',
+        'method' => 'PATCH',
         'timeout' => 10,
         'headers' => [
             'Content-Type' => 'application/json',
-            'X-WP-Secret'  => $secret,
+            'X-WP-Secret' => $secret,
         ],
         'body' => $payload,
     ]);
@@ -398,7 +476,8 @@ function wc_notify_order($order_id) {
     }
 }
 
-function wc_handle_firebase_login() {
+function wc_handle_firebase_login()
+{
     if (!isset($_GET['firebase_login']) || !isset($_GET['token']) || !isset($_GET['page'])) {
         return;
     }
@@ -452,7 +531,8 @@ function wc_handle_firebase_login() {
     }
 }
 
-function debug_log($function, $message, $level = 'INFO', $context = []) {
+function debug_log($function, $message, $level = 'INFO', $context = [])
+{
     $upload_dir = wp_upload_dir();
     $log_dir = $upload_dir['basedir'] . '/4climbers-logs';
 
@@ -475,17 +555,18 @@ function debug_log($function, $message, $level = 'INFO', $context = []) {
 }
 
 
-function wc_handle_ios_cookie_banner() {
+function wc_handle_ios_cookie_banner()
+{
     ?>
     <script>
-    (function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const showCookieBanner = urlParams.get('ios_show_cookie_banner');
+        (function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const showCookieBanner = urlParams.get('ios_show_cookie_banner');
 
-        if (showCookieBanner === '0') {
-            // Nascondi banner Iubenda con CSS
-            const style = document.createElement('style');
-            style.innerHTML = `
+            if (showCookieBanner === '0') {
+                // Nascondi banner Iubenda con CSS
+                const style = document.createElement('style');
+                style.innerHTML = `
                 #iubenda-cs-banner,
                 .iubenda-cs-overlay,
                 .iubenda-cs-container {
@@ -494,75 +575,75 @@ function wc_handle_ios_cookie_banner() {
                 }
             `;
 
-            if (document.head) {
-                document.head.appendChild(style);
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
+                if (document.head) {
                     document.head.appendChild(style);
-                });
-            }
+                } else {
+                    document.addEventListener('DOMContentLoaded', function () {
+                        document.head.appendChild(style);
+                    });
+                }
 
-            // Funzione per rifiutare i cookie
-            function rejectAllCookies() {
-                if (typeof _iub !== 'undefined' &&
-                    typeof _iub.cs !== 'undefined' &&
-                    typeof _iub.cs.api !== 'undefined') {
+                // Funzione per rifiutare i cookie
+                function rejectAllCookies() {
+                    if (typeof _iub !== 'undefined' &&
+                        typeof _iub.cs !== 'undefined' &&
+                        typeof _iub.cs.api !== 'undefined') {
 
-                    if (typeof _iub.cs.api.rejectAll === 'function') {
-                        _iub.cs.api.rejectAll();
-                        console.log('Iubenda: cookie automaticamente rifiutati');
+                        if (typeof _iub.cs.api.rejectAll === 'function') {
+                            _iub.cs.api.rejectAll();
+                            console.log('Iubenda: cookie automaticamente rifiutati');
+                        }
                     }
                 }
-            }
 
-            // Prova a rifiutare immediatamente
-            rejectAllCookies();
+                // Prova a rifiutare immediatamente
+                rejectAllCookies();
 
-            // Riprova dopo un breve delay per essere sicuri che Iubenda sia caricato
-            setTimeout(rejectAllCookies, 100);
-            setTimeout(rejectAllCookies, 500);
-            setTimeout(rejectAllCookies, 1000);
+                // Riprova dopo un breve delay per essere sicuri che Iubenda sia caricato
+                setTimeout(rejectAllCookies, 100);
+                setTimeout(rejectAllCookies, 500);
+                setTimeout(rejectAllCookies, 1000);
 
-            // Monitora DOM per banner caricati dinamicamente
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    mutation.addedNodes.forEach(function(node) {
-                        if (node.nodeType === 1) {
-                            if (node.id === 'iubenda-cs-banner' ||
-                                (node.classList && (
-                                    node.classList.contains('iubenda-cs-overlay') ||
-                                    node.classList.contains('iubenda-cs-container')
-                                ))) {
-                                node.style.display = 'none';
-                                node.style.visibility = 'hidden';
-                                // Quando appare il banner, prova a rifiutare
-                                rejectAllCookies();
+                // Monitora DOM per banner caricati dinamicamente
+                const observer = new MutationObserver(function (mutations) {
+                    mutations.forEach(function (mutation) {
+                        mutation.addedNodes.forEach(function (node) {
+                            if (node.nodeType === 1) {
+                                if (node.id === 'iubenda-cs-banner' ||
+                                    (node.classList && (
+                                        node.classList.contains('iubenda-cs-overlay') ||
+                                        node.classList.contains('iubenda-cs-container')
+                                    ))) {
+                                    node.style.display = 'none';
+                                    node.style.visibility = 'hidden';
+                                    // Quando appare il banner, prova a rifiutare
+                                    rejectAllCookies();
+                                }
                             }
-                        }
+                        });
                     });
                 });
-            });
 
-            if (document.body) {
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true
-                });
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
+                if (document.body) {
                     observer.observe(document.body, {
                         childList: true,
                         subtree: true
                     });
-                    // Riprova dopo il DOM load
-                    rejectAllCookies();
-                });
-            }
+                } else {
+                    document.addEventListener('DOMContentLoaded', function () {
+                        observer.observe(document.body, {
+                            childList: true,
+                            subtree: true
+                        });
+                        // Riprova dopo il DOM load
+                        rejectAllCookies();
+                    });
+                }
 
-            // Ascolta anche l'evento di caricamento della pagina
-            window.addEventListener('load', rejectAllCookies);
-        }
-    })();
+                // Ascolta anche l'evento di caricamento della pagina
+                window.addEventListener('load', rejectAllCookies);
+            }
+        })();
     </script>
     <?php
 }
