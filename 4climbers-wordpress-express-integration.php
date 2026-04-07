@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.19.0
+ * Version: 1.19.1
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -522,8 +522,10 @@ function wc_handle_firebase_login()
 
         if (isset($_GET['product_id'])) {
             $product_id = absint($_GET['product_id']);
+            debug_log("wc_handle_firebase_login", "product_id: $product_id");
 
             if ($product_id <= 0) {
+                debug_log("wc_handle_firebase_login", "ID prodotto non valido: $product_id");
                 wp_die('ID prodotto non valido');
             }
 
@@ -535,6 +537,7 @@ function wc_handle_firebase_login()
             }
 
             if (!function_exists('WC') || is_null(WC()->cart)) {
+                debug_log("wc_handle_firebase_login", "WooCommerce non inizializzato o cart non disponibile");
                 wp_die('Carrello WooCommerce non disponibile');
             }
 
@@ -546,17 +549,24 @@ function wc_handle_firebase_login()
                 wp_die('Impossibile aggiungere il prodotto al carrello');
             }
 
+            debug_log("wc_handle_firebase_login", "Prodotto $product_id aggiunto al carrello, redirect a checkout");
             wp_safe_redirect(home_url('/pagamento' . $queryString));
             exit;
         }
 
         $page = sanitize_key($_GET['page']);
+        debug_log(
+            "wc_handle_firebase_login",
+            "Page richiesta: $page"
+        );
 
         if ($page !== 'checkout') {
+            debug_log("wc_handle_firebase_login", "Redirect a pagina $page");
             wp_safe_redirect(home_url("/$page" . $queryString));
             exit;
         }
 
+        debug_log("wc_handle_firebase_login", "Redirect a pagina premium");
         wp_redirect(home_url('/premium' . $queryString));
         exit;
 
