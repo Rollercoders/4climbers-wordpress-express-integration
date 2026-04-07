@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.16.0
+ * Version: 1.17.0
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -478,7 +478,11 @@ function wc_notify_order($order_id)
 
 function wc_handle_firebase_login()
 {
-    if (!isset($_GET['firebase_login']) || !isset($_GET['token']) || !isset($_GET['page'])) {
+    if (!isset($_GET['firebase_login']) || !isset($_GET['token'])) {
+        return;
+    }
+
+    if (!isset($_GET['page']) && !isset($_GET['product_id'])) {
         return;
     }
 
@@ -494,7 +498,7 @@ function wc_handle_firebase_login()
         $verifiedIdToken = $auth->verifyIdToken($idTokenString);
         $email = $verifiedIdToken->claims()->get('email');
 
-        debug_log("wc_handle_firebase_login", "idTokenString: $idTokenString");
+        debug_log("wc_handle_firebase_login", "idTokenString: " . substr($idTokenString, 0, 20) . '...');
         debug_log("wc_handle_firebase_login", "email: $email");
 
         if (!$email) {
@@ -510,16 +514,46 @@ function wc_handle_firebase_login()
         wp_set_auth_cookie($user->ID, true);
         do_action('wp_login', $user->user_login, $user);
 
-        $page = $_GET['page'];
-
         // Forward ios_show_cookie_banner parameter if present
         $queryString = '';
         if (isset($_GET['ios_show_cookie_banner'])) {
             $queryString = '?ios_show_cookie_banner=' . sanitize_text_field($_GET['ios_show_cookie_banner']);
         }
 
+        if (isset($_GET['product_id'])) {
+            $product_id = absint($_GET['product_id']);
+
+            if ($product_id <= 0) {
+                wp_die('ID prodotto non valido');
+            }
+
+            $product = wc_get_product($product_id);
+
+            if (!$product || !$product->is_purchasable() || !$product->is_in_stock()) {
+                debug_log("wc_handle_firebase_login", "Prodotto non valido: $product_id");
+                wp_die('Prodotto non trovato o non acquistabile');
+            }
+
+            if (!function_exists('WC') || is_null(WC()->cart)) {
+                wp_die('Carrello WooCommerce non disponibile');
+            }
+
+            WC()->cart->empty_cart();
+            $result = WC()->cart->add_to_cart($product_id);
+
+            if (!$result) {
+                debug_log("wc_handle_firebase_login", "add_to_cart fallito per product_id: $product_id");
+                wp_die('Impossibile aggiungere il prodotto al carrello');
+            }
+
+            wp_safe_redirect(home_url('/checkout' . $queryString));
+            exit;
+        }
+
+        $page = sanitize_key($_GET['page']);
+
         if ($page !== 'checkout') {
-            wp_redirect(home_url("/$page" . $queryString));
+            wp_safe_redirect(home_url("/$page" . $queryString));
             exit;
         }
 
