@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 4Climbers Wordpress-Express Integration
  * Description: Wordpress-Express integration for 4Climbers
- * Version: 1.19.1
+ * Version: 1.19.2
  * Author: Alessandro Defendenti (Rollercoders)
  */
 
@@ -479,10 +479,14 @@ function wc_notify_order($order_id)
 function wc_handle_firebase_login()
 {
     if (!isset($_GET['firebase_login']) || !isset($_GET['token'])) {
+        debug_log('wc_handle_firebase_login', 'page: ' . $_GET['firebase_login'] . ', token presente');
+        debug_log("wc_handle_firebase_login", "Parametri mancanti, skip login");
         return;
     }
 
     if (!isset($_GET['page']) && !isset($_GET['product_id'])) {
+        debug_log('wc_handle_firebase_login', 'page: ' . $_GET['page'] . ', product_id: ' . $_GET['product_id']);
+        debug_log("wc_handle_firebase_login", "Né page né product_id specificati, skip login");
         return;
     }
 
