@@ -141,7 +141,6 @@ jobs:
         git tag -a "${{ steps.get_new_version.outputs.new-version }}-dev" -m "Release version ${{ steps.get_new_version.outputs.new-version }}"
         git push origin "${{ steps.get_new_version.outputs.new-version }}-dev"
 
-
     - name: Notify Telegram (Staging)
       if: steps.check-commit.outputs.should_deploy == 'true'
       uses: appleboy/telegram-action@v0.1.0
@@ -174,12 +173,12 @@ jobs:
         to: ${{ secrets.TELEGRAM_TO }}
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
-          🚀 *DEPLOY IN PRODUZIONE COMPLETATO!* 🚀
+          🚀 <b>DEPLOY IN PRODUZIONE COMPLETATO!</b> 🚀
 
-          📦 *Plugin:* 4Climbers WordPress Express Integration
-          🆕 *Versione:* `${{ steps.tag_version.outputs.tag_name }}`
-          👑 *Ambiente:* production
-          🕒 *Data:* `${{ steps.tag_version.outputs.commit_timestamp }}`
+          📦 <b>Plugin:</b> 4Climbers WordPress Express Integration
+          🆕 <b>Versione:</b> <code>${{ steps.tag_version.outputs.tag_name }}</code>
+          👑 <b>Ambiente:</b> production
+          🕒 <b>Data:</b> <code>${{ steps.tag_version.outputs.commit_timestamp }}</code>
 
-          ✅ _Deploy completato con successo!_
-        format: Markdown
+          ✅ <i>Deploy completato con successo!</i>
+        format: HTML
